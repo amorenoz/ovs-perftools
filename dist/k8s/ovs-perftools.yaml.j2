@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ovs-perftools-{{ node }}
+  labels:
+    app: ovs-perftools
+spec:
+  hostNetwork: true
+  containers:
+  - name: ovs-perftools
+    image: {{ image }}
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - mountPath: /var/run/openvswitch
+      name: var-run-ovs
+      readOnly: false
+  volumes:
+    - name: var-run-ovs
+      hostPath:
+        path: /var/run/openvswitch
+  nodeSelector:
+    ovs-perftool: "true"
