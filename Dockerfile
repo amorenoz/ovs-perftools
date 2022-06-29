@@ -24,6 +24,8 @@ RUN dnf install --best --refresh -y \
         numactl \
         procps-ng \
         sysstat \
+        dropwatch \
+        https://rpmfind.net/linux/epel/8/Everything/x86_64/Packages/u/uperf-1.0.7-1.el8.x86_64.rpm \
     && dnf clean all \
     && rm -rf /var/cache/yum
 

@@ -647,6 +647,7 @@ func geneveInterfaceMetricsUpdate() error {
 	if err != nil {
 		return fmt.Errorf("failed to lookup link %s: (%v)", geneveInterfaceName, err)
 	}
+	//klog.Errorf("link.Attr() %#v", link.Attrs())
 	ovsInterfaceMetricsDataMap["interface_mtu"].metric.WithLabelValues(
 		"none", "none", geneveInterfaceName).Set(float64(link.Attrs().MTU))
 	geneveInterfaceLinkStateValue := getOvsInterfaceState(link.Attrs().OperState.String())
@@ -802,6 +803,6 @@ func main() {
 	go ovsBridgeMetricsUpdate()
 
 	http.Handle("/console/metrics", promhttp.Handler())
-	log.Fatal(http.ListenAndServe(":9101", nil))
+	log.Fatal(http.ListenAndServe(":9310", nil))
 
 }
