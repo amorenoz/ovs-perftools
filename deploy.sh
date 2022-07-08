@@ -96,4 +96,4 @@ $KUBECTL apply -f ${POD_SPEC}
 echo "Waiting for pod to switch to ready condition. This can take a while (timeout 300s) ..."
 $KUBECTL wait pod --for=condition=ready --timeout=300s -l app=ovs-perftools 
 
-$KUBECTL exec -it ovs-perftools-${NODE} -- /root/run
+#$KUBECTL exec -it ovs-perftools-${NODE} -- /root/run
