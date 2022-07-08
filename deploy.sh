@@ -6,7 +6,7 @@ SCRIPT_PATH=`dirname $SCRIPT`
 
 TEMPLATE=${SCRIPT_PATH}/dist/k8s/ovs-perftools.yaml.j2
 POD_SPEC=${SCRIPT_PATH}/build/ovs-perftools.yaml
-DEF_IMAGE=quay.io/amorenoz/ovs-perftools
+DEF_IMAGE=quay.io/amorenoz/ovs-perftools:exporter
 IMAGE=${DEF_IMAGE}
 
 usage() {

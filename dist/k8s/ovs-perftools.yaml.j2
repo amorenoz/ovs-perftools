@@ -6,9 +6,11 @@ metadata:
     app: ovs-perftools
 spec:
   hostNetwork: true
+  hostPID: true
   containers:
   - name: ovs-perftools
     image: {{ image }}
+    imagePullPolicy: Always
     securityContext:
       privileged: true
     volumeMounts:
