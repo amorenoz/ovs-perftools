@@ -1,0 +1,15 @@
+kprobe:queue_userspace_packet {
+ $up = (struct dp_upcall_info *) arg3;
+ @ports[tid] = $up->portid;
+}
+
+kprobe:__netlink_sendskb / @ports[tid] != 0 / {
+ $sk = (struct sock *) arg0;
+ //@[kstack] = count();
+ @stats[@ports[tid]] = hist($sk->sk_backlog.rmem_alloc.counter);
+ @ports[tid] = 0;
+}
+
+END {
+ clear(@ports)
+}

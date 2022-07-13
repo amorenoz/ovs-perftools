@@ -21,6 +21,7 @@ RUN dnf install --best --refresh -y \
         perf \
         bcc \
         bpftrace \
+        bpftool \
         numactl \
         procps-ng \
         sysstat \
@@ -30,7 +31,10 @@ RUN dnf install --best --refresh -y \
     && dnf clean all \
     && rm -rf /var/cache/yum
 
+ADD bpftrace/* /usr/share/bpftrace/tools/
+
 COPY --from=builder /src/ovs-exporter /usr/bin
 RUN chmod +x /usr/bin/ovs-exporter
 
-CMD ["ovs-exporter"]
+#CMD ["ovs-exporter"]
+CMD ["sleep", "infinity"]

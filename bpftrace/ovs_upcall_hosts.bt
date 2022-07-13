@@ -1,0 +1,7 @@
+// This bpftrace script prints upcalls based on source and destination IP
+
+kprobe:ovs_dp_upcall {
+ $skb = (struct sk_buff *)arg1;
+ $ipheader = ((struct iphdr *) ($skb->head + $skb->network_header));
+ @hosts[ntop($ipheader->saddr),ntop($ipheader->daddr)] = count();
+}
