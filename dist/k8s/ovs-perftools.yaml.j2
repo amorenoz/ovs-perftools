@@ -17,9 +17,25 @@ spec:
     - mountPath: /var/run/openvswitch
       name: var-run-ovs
       readOnly: false
+    - mountPath: /lib/modules
+      name: lib-modules
+      readOnly: true
+    - mountPath: /host
+      name: root
+    - mountPath: /sys/kernel/debug
+      name: sys-kernel-debug
   volumes:
     - name: var-run-ovs
       hostPath:
         path: /var/run/openvswitch
+    - name: root
+      hostPath:
+        path: /
+    - name: sys-kernel-debug
+      hostPath:
+        path: /sys/kernel/debug
+    - name: lib-modules
+      hostPath:
+        path: /lib/modules
   nodeSelector:
     ovs-perftool: "true"
