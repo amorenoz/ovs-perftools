@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: perf-master-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: perf-master
+  template:
+    metadata:
+      labels:
+        app: perf-master
+    spec:
+      containers:
+        - name: perf-server
+          image: quay.io/amorenoz/ovs-perftools
+          imagePullPolicy: Always
+          command: ["sleep"]
+          args: ["infinity"]
+          securityContext:
+            privileged: true
+          ports:
+            - name: http-port
+              containerPort: 2000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: perf-slave-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: perf-slave
+  template:
+    metadata:
+      labels:
+        app: perf-slave
+    spec:
+      containers:
+        - name: perf-slave
+          image: quay.io/amorenoz/ovs-perftools
+          imagePullPolicy: Always
+          command: ["uperf"]
+          args: ["-s"]
+          securityContext:
+            privileged: true
+          ports:
+            - name: http-port
+              containerPort: 2000
