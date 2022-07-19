@@ -73,23 +73,22 @@ shift $(((OPTIND -1)))
 NODE=$1
 
 get_kubectl_binary
-is_command_fail pip
+is_command_fail pip3
 is_command_fail grep
 
 # Ensure j2 installed
-pip freeze | grep j2cli || pip install j2cli[yaml] --user
+pip3 freeze | grep j2cli || pip3 install j2cli[yaml] --user
 
-# j2 may be installed, but the pip user path might not be added to PATH
+# j2 may be installed, but the pip3 user path might not be added to PATH
 is_command_fail j2
 
 $KUBECTL get node $NODE &>/dev/null || "kubectl cannot access node $NODE. Ensure the node name is correct and you have access to the cluster (KUBECONFIG)"
 
+rm -r ${SCRIPT_PATH}/build
 mkdir -p ${SCRIPT_PATH}/build
 node=${NODE} \
     image=${IMAGE} \
     j2 ${TEMPLATE} -o ${POD_SPEC}
-
-$KUBECTL label nodes --overwrite ${NODE} ovs-perftool=true
 
 $KUBECTL apply -f ${POD_SPEC}
 
