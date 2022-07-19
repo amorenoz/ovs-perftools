@@ -1,0 +1,158 @@
+// This bpftrace script prints successfull and errored upcalls per netdev
+
+//Let bpftrace detect btf structs.
+// #include <linux/sk_buff.h>
+
+#define TASK_RUNNING                    0x0000
+
+BEGIN 
+{
+    @cpus[0] = 1;
+    @cpus[1] = 1;
+    @cpus[32] = 1;
+    @cpus[33] = 1;
+
+    @vec[0] = "HI";
+    @vec[1] = "TIMER";
+    @vec[2] = "NET_TX";
+    @vec[3] = "NET_RX";
+    @vec[4] = "BLOCK";
+    @vec[5] = "IRQ_POLL";
+    @vec[6] = "TASKLET";
+    @vec[7] = "SCHED";
+    @vec[8] = "HRTIMER";
+    @vec[9] = "RCU";
+}
+
+kprobe:ovs_dp_upcall
+{
+ $skb = (struct sk_buff *)arg1;
+ $dev = $skb->dev;
+ $name = $dev->name;
+ $ipheader = ((struct iphdr *) ($skb->head + $skb->network_header));
+ @hosts[$name, ntop($ipheader->saddr), ntop($ipheader->daddr)] = count();
+ @device[tid] = $dev;
+ @size[$name] = hist($skb->len);
+}
+
+kprobe:__netlink_sendskb / @device[tid] != (struct net_device *)0 /
+{
+ $sk = (struct sock *) arg0;
+ @rmem[((struct net_device *)@device[tid])->name] = hist($sk->sk_backlog.rmem_alloc.counter);
+}
+
+kretprobe:ovs_dp_upcall / retval == 0 && @device[tid] != (struct net_device *)0 /
+{
+ @success[@device[tid]->name] = count();
+ @device[tid] = (struct net_device *)0;
+}
+
+kretprobe:ovs_dp_upcall / retval != 0 && @device[tid] != (struct net_device *)0 /
+{
+ @error[@device[tid]->name] = count();
+ @device[tid] = (struct net_device *)0;
+}
+
+tracepoint:sched:sched_switch
+{
+    if (strncmp("handler", args->prev_comm, 7) == 0) {
+        if (args->prev_state == TASK_RUNNING) {
+            @tmp_sched_time[args->prev_pid] = nsecs;
+            @tmp_sched_comm[args->prev_pid] = args->next_comm;
+        }
+    }
+    
+    $ns = @tmp_sched_time[args->next_pid];
+    if ($ns) {
+        @usecs_pree= hist((nsecs - $ns) / 1000);
+        @comms_pree[args->next_comm, @tmp_sched_comm[args->next_pid]] = count();
+    }
+    delete(@tmp_sched_time[args->next_pid]);
+    delete(@tmp_sched_comm[args->prev_pid]);
+}
+
+tracepoint:irq:softirq_entry
+{
+    if (@cpus[cpu] == 1) {
+        @softirqs[cpu, @vec[args->vec]] = count();
+        @tmp_softirqs_time[cpu,tid] = nsecs;
+        @tmp_softirqs_id[cpu,tid] = args->vec;
+    }
+}
+
+tracepoint:irq:softirq_exit
+{
+    $ns = @tmp_softirqs_time[cpu,tid];
+    $id = @tmp_softirqs_id[cpu,tid];
+    if ($ns != 0) {
+        @softirqs_delay[cpu, @vec[$id]] = hist(nsecs - $ns);
+        delete(@tmp_softirqs_time[cpu,tid]);
+        delete(@tmp_softirqs_id[cpu,tid]);
+    }
+}
+
+tracepoint:irq:irq_handler_entry
+{
+    if (@cpus[cpu] == 1) {
+        @hardirqs[cpu, args->irq] = count();
+        @tmp_hardirqs_time[cpu,tid] = nsecs;
+        @tmp_hardirqs_id[cpu,tid] = args->irq;
+    }
+}
+
+tracepoint:irq:irq_handler_exit
+{
+    $ns = @tmp_hardirqs_time[cpu,tid];
+    $id = @tmp_hardirqs_id[cpu,tid];
+    if ($ns != 0) {
+        @hardirqs_delay[cpu, $id] = hist(nsecs - $ns);
+        delete(@tmp_hardirqs_time[cpu,tid]);
+        delete(@tmp_hardirqs_id[cpu,tid]);
+    }
+}
+
+interval:s:1
+{
+    time();
+    printf("\n--- Upcall success / error ---\n");
+    print(@success);
+    print(@error);
+    printf("\n--- Upcall pkt size and host stats ---\n");
+    print(@size);
+    print(@hosts);
+    printf("\n--- Netlink rcv buffer usage ---\n");
+    print(@rmem);
+    printf("\n--- Preemption usecs / comms ---\n");
+    print(@usecs_pree);
+    print(@comms_pree);
+    printf("\n--- SoftIrqs number and delay (ns) ---\n");
+    print(@softirqs);
+    print(@softirqs_delay);
+    printf("\n--- HardIrqs number and delay (ns) ---\n");
+    print(@hardirqs);
+    print(@hardirqs_delay);
+
+    clear(@success);
+    clear(@error);
+    clear(@rmem);
+    clear(@size);
+    clear(@hosts);
+    clear(@usecs_pree);
+    clear(@comms_pree);
+    clear(@softirqs);
+    clear(@softirqs_delay);
+    clear(@hardirqs);
+    clear(@hardirqs_delay);
+}
+
+END
+{
+ // clear temporary maps
+ clear(@device);
+ clear(@tmp_softirqs_time);
+ clear(@tmp_softirqs_id);
+ clear(@tmp_hardirqs_time);
+ clear(@tmp_hardirqs_id);
+ clear(@tmp_sched_time);
+ clear(@tmp_sched_comm)
+}
