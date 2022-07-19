@@ -66,9 +66,10 @@ tracepoint:sched:sched_switch
     if ($ns) {
         @usecs_pree= hist((nsecs - $ns) / 1000);
         @comms_pree[args->next_comm, @tmp_sched_comm[args->next_pid]] = count();
+
+        delete(@tmp_sched_time[args->next_pid]);
+        delete(@tmp_sched_comm[args->prev_pid]);
     }
-    delete(@tmp_sched_time[args->next_pid]);
-    delete(@tmp_sched_comm[args->prev_pid]);
 }
 
 tracepoint:irq:softirq_entry
