@@ -1,0 +1,121 @@
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: ovs-exporter
+  namespace: openshift-ovn-kubernetes
+  annotations:
+    kubernetes.io/description: |
+      This DaemonSet launches the ovs metrics exporter
+spec:
+  selector:
+    matchLabels:
+      app: ovs-exporter
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: ovs-exporter
+        app: ovs-exporter
+        component: network
+        type: infra
+        kubernetes.io/os: "linux"
+    spec:
+      hostNetwork: true
+      #dnsPolicy: Default
+      hostPID: true
+      containers:
+
+      - name: ovs-metrics-exporter
+        image: "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:81627e062a410090d7d4134d59a48e3f36ee79fa5fc56f270b3f3aa49e004d5a"
+        imagePullPolicy: "IfNotPresent"
+
+        command: ["/usr/bin/ovn-kube-util", "ovs-exporter"]
+
+        securityContext:
+          runAsUser: 0
+          capabilities:
+            add: ["NET_ADMIN"]
+
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /var/run/dbus/
+          name: host-var-run-dbus
+          readOnly: true
+        - mountPath: /var/log/openvswitch/
+          name: host-var-log-ovs
+        - mountPath: /var/run/openvswitch/
+          name: host-var-run-ovs
+          readOnly: true
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 300Mi
+        env:
+        - name: OVN_DAEMONSET_VERSION
+          value: "3"
+        - name: K8S_NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        # end of container
+      nodeSelector:
+        kubernetes.io/os: "linux"
+      volumes:
+      # Common volumes
+      - name: host-var-run-dbus
+        hostPath:
+          path: /var/run/dbus
+      - name: host-var-log-ovs
+        hostPath:
+          path: /var/log/openvswitch
+      - name: host-run-ovs
+        hostPath:
+          path: /run/openvswitch
+      - name: host-var-run-ovs
+        hostPath:
+          path: /var/run/openvswitch
+
+      tolerations:
+      - operator: "Exists"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ovs-exporter
+  name: ovs-metrics
+  namespace: openshift-ovn-kubernetes
+spec:
+  selector:
+    name: ovs-exporter
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: ovs-metrics
+    port: 9310
+    protocol: TCP
+    targetPort: 9310
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: ovs-exporter
+  name: monitor-ovs-metrics
+  namespace: openshift-ovn-kubernetes
+spec:
+  endpoints:
+  - interval: 30s
+    port: ovs-metrics
+    scheme: http
+    path: /metrics
+  jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - openshift-ovn-kubernetes
+  selector:
+    matchLabels:
+      app: ovs-exporter
