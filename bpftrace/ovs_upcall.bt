@@ -53,22 +53,45 @@ kretprobe:ovs_dp_upcall / retval != 0 && @device[tid] != (struct net_device *)0 
  @device[tid] = (struct net_device *)0;
 }
 
-tracepoint:sched:sched_switch
+
+// Latency
+
+tracepoint:sched:sched_wakeup,
+tracepoint:sched:sched_wakeup_new
+/ @cpus[cpu] == 1 /
 {
-    if (strncmp("handler", args->prev_comm, 7) == 0) {
+    @tmp_qtime[args->pid] = nsecs;
+}
+
+tracepoint:sched:sched_switch / @cpus[cpu] == 1 /
+{
+    $next = args->next_comm;
+    $prev = args->prev_comm;
+    // scheduled off
+    if (strncmp("handler", $prev, 7) == 0) {
         if (args->prev_state == TASK_RUNNING) {
             @tmp_sched_time[args->prev_pid] = nsecs;
-            @tmp_sched_comm[args->prev_pid] = args->next_comm;
+            @tmp_sched_comm[args->prev_pid] = $next;
         }
     }
-    
-    $ns = @tmp_sched_time[args->next_pid];
-    if ($ns) {
-        @usecs_pree= hist((nsecs - $ns) / 1000);
-        @comms_pree[args->next_comm, @tmp_sched_comm[args->next_pid]] = count();
 
-        delete(@tmp_sched_time[args->next_pid]);
-        delete(@tmp_sched_comm[args->prev_pid]);
+    // scheduled on
+    if (strncmp("handler", $next, 7) == 0) {
+        // It was preempted
+        $ns = @tmp_sched_time[args->next_pid];
+        if ($ns) {
+            @usecs_pree= hist((nsecs - $ns) / 1000);
+            @comms_pree[$next, @tmp_sched_comm[args->next_pid]] = count();
+
+            delete(@tmp_sched_time[args->next_pid]);
+            delete(@tmp_sched_comm[args->prev_pid]);
+        }
+        // It had to wait
+        $woke = @tmp_qtime[args->next_pid];
+        if ($woke) {
+            @run_latency_usecs[$next, $prev] = hist((nsecs - $woke)/1000);
+            delete(@tmp_qtime[args->next_pid]);
+        }
     }
 }
 
@@ -126,6 +149,8 @@ interval:s:1
     printf("\n--- Preemption usecs / comms ---\n");
     print(@usecs_pree);
     print(@comms_pree);
+    printf("\n--- latency usecs ---\n");
+    print(@run_latency_usecs);
     printf("\n--- SoftIrqs number and delay (ns) ---\n");
     print(@softirqs);
     print(@softirqs_delay);
@@ -141,6 +166,7 @@ interval:s:1
     clear(@usecs_pree);
     clear(@comms_pree);
     clear(@softirqs);
+    clear(@run_latency_usecs);
     clear(@softirqs_delay);
     clear(@hardirqs);
     clear(@hardirqs_delay);
@@ -155,5 +181,6 @@ END
  clear(@tmp_hardirqs_time);
  clear(@tmp_hardirqs_id);
  clear(@tmp_sched_time);
- clear(@tmp_sched_comm)
+ clear(@tmp_sched_comm);
+ clear(@tmp_qtime);
 }
